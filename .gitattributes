@@ -1,0 +1,12 @@
+###############################################################################
+# Line Endings
+###############################################################################
+
+# Set default behavior to automatically normalize line endings.
+* text=auto
+
+# These files will be converted to native line endings on checkout
+*.md text
+
+# These files will always have Windows-style line endings
+*.ps1 text eol=crlf
