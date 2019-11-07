@@ -1,0 +1,1 @@
+# Authenticode Scripts
