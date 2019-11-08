@@ -2,18 +2,17 @@
 .SYNOPSIS
 Sign a file using a code signing certificate.
 
-.PARAMETER Path
-Specify the path to the file that will be signed.
+.DESCRIPTION
+This script will sign a file using a code signing certificate installed on the
+system. It will enumerate available code signing certificates, and if more than
+one is found, it will prompt for one to be selected unless the serial number or
+thumbprint of the desired certificate is specified.
 
-.PARAMETER HashAlgorithm
-Specify the hash algorithm to use. Only SHA256 is supported.
-
-.PARAMETER TimestampURL
-Specify the RFC-3161 timestamp server to use.
+If an intermediate certificate is needed and available, it will be included.
 
 .EXAMPLE
+PS> Set-FileSignature.ps1 -Path myfile.sys
 Sign the file "myfile.sys"
-PS> SignFile.ps1 -Path myfile.sys
 
 #>
 
@@ -27,13 +26,20 @@ Param (
   [Parameter(Mandatory=$true,Position=0)]
   [ValidateNotNullOrEmpty()]
   [String]
+  # Specifies the path to the file that will be signed.
   $Path,
 
   [String]
+  # Specifies the hash algorithm to use. Only SHA256 is supported.
   $HashAlgorithm = "SHA256",
 
   [String]
-  $TimestampURL = "http://timestamp.digicert.com"
+  # Specifies the RFC-3161 timestamp server to use.
+  $TimestampURL = "http://timestamp.digicert.com",
+
+  [String]
+  # Specifies the SHA1 thumbprint of the certificate to use.
+  $Thumbprint = $null
 )
 
 ###############################################################################
@@ -44,7 +50,7 @@ Param (
 .SYNOPSIS
 Find the Windows SDK.
 #>
-function findWDK {
+function Find-WDK {
   If (-Not([string]::IsNullOrEmpty("${env:WindowsSdkDir}")) -And -Not([string]::IsNullOrEmpty("${env:WindowsSDKVersion}"))) { return }
 
   If (-Not([string]::IsNullOrEmpty("${env:WindowsSdkDir}"))) {
@@ -66,20 +72,6 @@ function findWDK {
   }
 }
 
-<#
-.SYNOPSIS
-Normalize a path string.
-#>
-function NormalizePath {
-  Param (
-    [Parameter(Mandatory=$true)]
-    [String]
-    $Path
-  )
-  [System.IO.Directory]::SetCurrentDirectory(((Get-Location -PSProvider FileSystem).ProviderPath))
-  return [System.IO.Path]::GetFullPath($Path)
-}
-
 ###############################################################################
 # Definitions
 ###############################################################################
@@ -88,8 +80,8 @@ function NormalizePath {
 $ErrorActionPreference = "Stop"
 
 # Error codes
-$ERR_BAD_ARGS = 1
-$ERR_NO_CERT = 2
+$ERR_BAD_ARGS       = 1
+$ERR_NO_CERT        = 2
 $ERR_SIGNING_FAILED = 3
 
 ###############################################################################
@@ -107,7 +99,7 @@ If (-Not($platform -in @( "Win32NT" ))) {
 #
 # Find signtool
 #
-findWDK
+Find-WDK
 $signtool = "${env:WindowsSdkDir}/bin/${env:WindowsSDKVersion}/x64/signtool.exe"
 If (-Not(Test-Path "$signtool")) {
   throw "Failed to find signtool.exe in Windows SDK."
@@ -125,6 +117,11 @@ If (-Not(Test-Path "$Path")) {
 
 # Find all code signing certificates
 $Certificates = Get-ChildItem -Path Cert: -CodeSigningCert -Recurse
+
+# Filter certificates against any specified Thumbprint
+If (-Not([string]::IsNullOrEmpty("$Thumbprint"))) {
+  $Certificates = $Certificates | Where-Object { $_.Thumbprint -eq $Thumbprint }
+}
 
 # Make sure we found at least one usable certificate
 If ($Certificates.Count -eq 0) {

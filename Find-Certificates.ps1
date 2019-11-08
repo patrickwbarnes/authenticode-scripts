@@ -3,7 +3,7 @@
 List available code signing certificates.
 
 .EXAMPLE
-PS> ListCerts.ps1
+PS> Find-Certificates.ps1
 
 #>
 
